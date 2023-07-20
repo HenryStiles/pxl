@@ -337,33 +337,34 @@ pxl_attribute_name_to_attribute_number_dict = {
 class pxl_asm:
 
     def __init__(self, data):
-        # ` HP-PCL XL;3;0
-        index = data.index(b"` HP-PCL XL;")
-        data = data[index:]
-        self.data = data
+        index = 0
+        pxl_start = b") HP-PCL XL;"
+        while (True):
+            slice = data[index:index+len(pxl_start)]
+            if (slice == pxl_start):
+                break
+            index = index + 1
                 # parse out data order and protocol
-        self.binding = chr_(data[0])
-        self.protocol = chr_(data[12])
-        self.revision = chr_(data[14])
+        self.binding = chr_(data[index])
+        index += len(pxl_start)
+        self.protocol = chr_(data[index])
+        index += 2
+        self.revision = chr_(data[index])
+        # search for the newline
+        while (chr_(data[index]) != '\n'):
+            index += 1
+        index += 1
+
+        sys.stdout.buffer.write(data[:index])
 
         # pointer to data
-        self.index = 0
+        self.index = index
         # NB this screws up file indexing - remove all comments
+        self.data = data
         self.data = re.sub( b'\/\/.*\n', b'', self.data )
 
-        # print out big endian protocol and revision.  NB should check
-        # revisions are the same.
-        print("\033%-12345X@PJL ENTER LANGUAGE = PCLXL")
-        print(") HP-PCL XL;" + self.protocol + ";" + self.revision)
-        sys.stdout.flush()
-
-        # skip over protocol and revision
-        while( chr_(data[self.index]) != '\n' ):
-            self.index = self.index + 1
-        self.index = self.index + 1
-
         # saved size of last array parsed
-        self.size_of_array = -1;
+        self.size_of_array = -1
         self.pack_string = ""
 
         # dictionary of streams keyed by stream name
@@ -372,10 +373,6 @@ class pxl_asm:
         # the n'th operator in the stream
         self.operator_position = 0
         self.__verbose = DEBUG
-
-        # the file must be ascii encode to assemble.
-        if (self.binding != '`'):
-            raise(SyntaxError)
 
         # output is always little endian.
         self.assembled_binding = '<'
@@ -825,8 +822,8 @@ if __name__ == '__main__':
 
     if not sys.argv[1:]:
         print("Usage: %s pxl files" % sys.argv[0])
-        
-    for file in sys.argv[1:]:
+    files = ["pattern.dis",]   
+    for file in files:
         try:
             fp = open(file, 'rb')
         except:

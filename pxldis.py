@@ -13,6 +13,13 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+# Portions Copyright (C) 2001-2023 Artifex Software Inc.
+#   
+#   This software is distributed under license and may not be copied, modified
+#   or distributed except as expressly authorized under the terms of that
+#   license.  Refer to licensing information at http://www.artifex.com/ or
+#   contact Artifex Software, Inc.,  39 Mesa Street, Suite 108A, San Francisco,
+#   CA 94129, USA, for further information.
 #
 # TODO
 # array data should be wrapped.
@@ -356,20 +363,24 @@ class pxl_dis:
 
     def __init__(self, data):
 
-        # the class does not handle pjl, work around that here.  NB
-        # should check for little endian protocol but we haven't seen
-        # it used yet.
-        index = data.index(b") HP-PCL XL;")
+        # Just dump out everything before PXL starts.  NB test for XL without
+        # start.
+        index = 0
+        pxl_start = b") HP-PCL XL;"
+        while (True):
+            slice = data[index:index+len(pxl_start)]
+            if (slice == pxl_start):
+                break
+            index = index + 1
+        sys.stdout.buffer.write(data[:index])
         
-        # copy of the data without the PJL
-        data = data[index:]
-        self.data = data
-        
-        # parse out data order and protocol
-        self.binding = chr_(data[0])
-        self.protocol = chr_(data[12])
-        self.revision = chr_(data[14])
-
+        # parse out data order and protocol.  NB add check later.
+        start = index
+        self.binding = chr_(data[index])
+        index += len(pxl_start)
+        self.protocol = chr_(data[index])
+        index += 2
+        self.revision = chr_(data[index])
         # check binding NB - should check other stuff too:
         # example: )<SP>HP-PCL XL;2;0<CR><LF>
         if self.binding not in ['(', ')']:
@@ -377,6 +388,12 @@ class pxl_dis:
                 print("The PXL code is already ascii encoded\n", file=sys.stderr)
             raise(SyntaxError)
 
+        # search for the newline
+        while (chr(data[index]) != '\n'):
+            index += 1
+        index += 1
+
+        sys.stdout.buffer.write(data[start:index])
         # replace with python's struct endian flag.
         if (self.binding == ')'):
             # little endian
@@ -384,24 +401,14 @@ class pxl_dis:
         else:
             self.binding = '>'
         
-        # save the what we skipped over so we can record file offsets
-        self.skipped_over = index
-        # pointer to data
-        self.index = 0
+        # NB, depracated.  save the what we skipped over so we can record file offsets
+        self.skipped_over = 0
         # graphic state number of pushes - number of pops
         self.graphics_state_level = 0
-        # print out ascii protocol and revision.  NB should check
-        # revisions are the same.
-        print("` HP-PCL XL;" + self.protocol + ";" + self.revision)
         # saved size of last array parsed
-        self.size_of_element = -1;
-        self.size_of_array = -1;
+        self.size_of_element = -1
+        self.size_of_array = -1
         self.unpack_string = ""
-
-        # skip over protocol and revision
-        while( chr_(data[self.index]) != '\n' ):
-            self.index = self.index + 1
-        self.index = self.index + 1
 
         # dictionary of streams keyed by stream name
         self.user_defined_streams = {}
@@ -417,6 +424,8 @@ class pxl_dis:
 
         # true if we get UEL
         self.endjob = 0
+        self.data = data
+        self.index = index
         
     # redefine unpack to handle endiannes
     def unpack(self, format, data):
@@ -966,7 +975,8 @@ if __name__ == '__main__':
     if not sys.argv[1:]:
         print("Usage: %s pxl files" % sys.argv[0])
 
-    files = sys.argv[1:]
+ #   files = sys.argv[1:]
+    files = ["pattern.pxl",]
 
     for file in files:
         try:
