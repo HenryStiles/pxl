@@ -32,6 +32,8 @@ from __future__ import print_function, unicode_literals
 
 import sys
 
+from file_array import FileArray
+
 if sys.version < '3':
     def chr_(x):
         return x
@@ -968,19 +970,11 @@ if __name__ == '__main__':
     if not sys.argv[1:]:
         print("Usage: %s pxl files" % sys.argv[0])
 
- #   files = sys.argv[1:]
-    files = ["pattern.pxl",]
+    files = sys.argv[1:]
 
     for file in files:
-        try:
-            fp = open(file, 'rb')
-        except:
-            print("Cannot find file %s" % file)
-            continue
-        # read the whole damn thing.  If this get too cumbersome we
-        # can switch to string i/o which will use a disk
-        pxl_code = fp.read()
-        fp.close()
+        binary = True
+        pxl_code = FileArray(file, binary)
     
         # initialize and disassemble.
         pxl_stream = pxl_dis(pxl_code)

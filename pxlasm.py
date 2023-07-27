@@ -42,7 +42,8 @@ import re
 from struct import *
 import string 
 import sys
-
+from file_array import FileArray
+import traceback
 DEBUG = 0
 
 # Workaround stupid windows stdout not being binary safe
@@ -338,30 +339,28 @@ class pxl_asm:
 
     def __init__(self, data):
         index = 0
-        pxl_start = b") HP-PCL XL;"
+        pxl_start = ") HP-PCL XL;"
         while (True):
             slice = data[index:index+len(pxl_start)]
             if (slice == pxl_start):
                 break
             index = index + 1
                 # parse out data order and protocol
-        self.binding = chr_(data[index])
+        self.binding = data[index]
         index += len(pxl_start)
-        self.protocol = chr_(data[index])
+        self.protocol = data[index]
         index += 2
-        self.revision = chr_(data[index])
+        self.revision = data[index]
         # search for the newline
-        while (chr_(data[index]) != '\n'):
+        while data[index] != '\n':
             index += 1
         index += 1
 
-        sys.stdout.buffer.write(data[:index])
-
+        sys.stdout.write(data[:index])
+        sys.stdout.flush()
         # pointer to data
         self.index = index
-        # NB this screws up file indexing - remove all comments
         self.data = data
-        self.data = re.sub( b'\/\/.*\n', b'', self.data )
 
         # saved size of last array parsed
         self.size_of_array = -1
@@ -376,31 +375,42 @@ class pxl_asm:
 
         # output is always little endian.
         self.assembled_binding = '<'
-        
+    
+    # consume white space and comments of the form '//' to the end of the line.
+    def skip_whitespace_and_comments(self):
+        index = self.index
+        while self.data[index] in string.whitespace:
+            index = index + 1
+        # NB EOF
+        while ( self.data[index] == '/' and self.data[index+1] == '/' ):
+            while self.data[index] != '\n':
+                index = index + 1
+            index = index + 1
+        return index
+
     # does not consume the string
     def next_string(self):
-        index = self.index
-        while chr_(self.data[index]) in string.whitespace: index = index + 1
-        start = index
-        while chr_(self.data[index]) not in string.whitespace: index = index + 1
+        start = self.skip_whitespace_and_comments()
+        index = start
+        while self.data[index] not in string.whitespace: index = index + 1
         end = index
-        return self.data[start:end].decode()
+        return self.data[start:end]
 
     def consume_next_string(self):
-        while chr_(self.data[self.index]) in string.whitespace:
-            self.index = self.index + 1
-        while chr_(self.data[self.index]) not in string.whitespace:
+        self.index = self.skip_whitespace_and_comments()
+        while self.data[self.index] not in string.whitespace:
             self.index = self.index + 1
 
     # redefine pack to handle endianness
     def pack(self, format, *data):
         for args in data:
             try:
+#                print("Packing", format, args, file=sys.stderr)
                 sys_stdout_write(pack(self.assembled_binding + format, args))
             except:
                 sys.stderr.write("assemble failed at: ")
                 # dump surrounding context.
-                sys.stderr.write(self.data[self.index:self.index+40].decode())
+                sys.stderr.write(self.data[self.index:self.index+40])
                 sys.stderr.write("\n")
                 raise
     # implicitly read when parsing the tag
@@ -470,7 +480,7 @@ class pxl_asm:
         return 0
 
     def consume_to_char_plus_one(self, inchr):
-        while (self.data[self.index:self.index+len(inchr)].decode() != inchr):
+        while (self.data[self.index:self.index+len(inchr)] != inchr):
             self.index = self.index + 1
         self.index = self.index + len(inchr)
             
@@ -660,20 +670,20 @@ class pxl_asm:
     # return the start and end position of the next string
     def next_token(self):
         # token begins or end on a line
-        while chr_(self.data[self.index]) in string.whitespace:
+        while self.data[self.index] in string.whitespace:
             self.index = self.index + 1
         start = self.index
-        while chr_(self.data[self.index]) not in string.whitespace:
+        while self.data[self.index] not in string.whitespace:
             self.index = self.index + 1
         end = self.index
         pos = start
         # return offset within the line of the start of the token.
         # Useful for assembling hex format.
-        while (chr_(self.data[pos]) != '\n'):
+        while (self.data[pos] != '\n'):
             if pos == 0:
                 break
             pos -= 1
-        return self.data[start:end].decode(), start-pos-1
+        return self.data[start:end], start-pos-1
     
     def next_hex_num(self):
         num_str, offset = self.next_token()
@@ -792,13 +802,14 @@ class pxl_asm:
 
     def UEL(self):
         uel_string_1 = 'string*'
-        uel_string_2 = b'-12345X'
+        # NB better handling of escape sequence.
+        uel_string_2 = '\\x1B%-12345X'
         tag = self.next_string()
         if ( tag == uel_string_1 ):
             self.consume_next_string()
-            # an approximate search
-            if (self.data[self.index:].find( uel_string_2 ) >= 0 ):
-                self.consume_to_char_plus_one('X')
+            tag = self.next_string()
+            if (tag == uel_string_2):
+                self.consume_next_string()
                 sys.stdout.write( "\033%-12345X" )
                 sys.stdout.flush()
                 return 1
@@ -807,32 +818,25 @@ class pxl_asm:
     def operatorSequences(self):
         while ( self.attributeLists() and self.operatorTag() ) or self.UEL():
             continue
-        
+
+    
     def assemble(self):
         try:
             self.operatorSequences()
         # assume an index error means we have processed everything - ugly
         except IndexError:
-             return
-        else:
-            sys.stderr.write("assemble failed\n")
+            return
+        return
 
 if __name__ == '__main__':
     import sys
 
     if not sys.argv[1:]:
         print("Usage: %s pxl files" % sys.argv[0])
-    files = ["pattern.dis",]   
-    for file in files:
-        try:
-            fp = open(file, 'rb')
-        except:
-            sys.stderr.write("Cannot find file %s" % file)
-            continue
-        # read the whole damn thing.  Removing comments and blank lines.
-        pxl_code = fp.read()
-        fp.close()
 
+    for file in sys.argv[1:]:
+        binary = False
+        pxl_code = FileArray(file, binary)
         # initialize and assemble.
         pxl_stream = pxl_asm(pxl_code)
         pxl_stream.assemble()
