@@ -13,13 +13,6 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-# Portions Copyright (C) 2001-2023 Artifex Software Inc.
-#   
-#   This software is distributed under license and may not be copied, modified
-#   or distributed except as expressly authorized under the terms of that
-#   license.  Refer to licensing information at http://www.artifex.com/ or
-#   contact Artifex Software, Inc.,  39 Mesa Street, Suite 108A, San Francisco,
-#   CA 94129, USA, for further information.
 #
 # TODO
 # array data should be wrapped.
