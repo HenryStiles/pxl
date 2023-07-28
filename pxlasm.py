@@ -27,16 +27,8 @@
 # Artifex reports the file offset of each operator HP does not.
 
 # for packing and unpacking binary data
-from __future__ import print_function
-import sys
-if sys.version < '3':
-    def chr_(x):
-        return x
-    sys_stdout_write = sys.stdout.write
-else:
-    def chr_(x):
-        return chr(x)
-    sys_stdout_write = sys.stdout.buffer.write
+
+
 
 import re
 from struct import *
@@ -405,8 +397,7 @@ class pxl_asm:
     def pack(self, format, *data):
         for args in data:
             try:
-#                print("Packing", format, args, file=sys.stderr)
-                sys_stdout_write(pack(self.assembled_binding + format, args))
+                sys.stdout.buffer.write(pack(self.assembled_binding + format, args))
             except:
                 sys.stderr.write("assemble failed at: ")
                 # dump surrounding context.
@@ -835,8 +826,7 @@ if __name__ == '__main__':
         print("Usage: %s pxl files" % sys.argv[0])
 
     for file in sys.argv[1:]:
-        binary = False
-        pxl_code = FileArray(file, binary)
+        pxl_code = FileArray(file, binary=False)
         # initialize and assemble.
         pxl_stream = pxl_asm(pxl_code)
         pxl_stream.assemble()

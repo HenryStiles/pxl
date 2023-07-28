@@ -28,30 +28,14 @@
 
 #Python 3 compat mode for Python2 must be the first line (without conditionals):
 # 'from __future__ imports must occur at the beginning of the file'
+
 from __future__ import print_function, unicode_literals
 
+import traceback
 import sys
 
 from file_array import FileArray
 
-if sys.version < '3':
-    def chr_(x):
-        return x
-    def ord_(x):
-        return ord(x)
-    def unpackB(x):
-        return unpack(b'B', x)[0]
-    def b(x):
-        return x.encode()
-else:
-    def chr_(x):
-        return chr(x)
-    def ord_(x):
-        return x
-    def unpackB(x):
-        return x
-    def b(x):
-        return x
 
 # for packing and unpacking binary data
 from struct import *
@@ -359,7 +343,6 @@ class pxl_dis:
     def __init__(self, data):
 
         # Just dump out everything before PXL starts.  NB test for XL without
-        # start.
         index = 0
         pxl_start = b") HP-PCL XL;"
         while (True):
@@ -367,15 +350,16 @@ class pxl_dis:
             if (slice == pxl_start):
                 break
             index = index + 1
+        # start.
         sys.stdout.buffer.write(data[:index])
         
         # parse out data order and protocol.  NB add check later.
         start = index
-        self.binding = chr_(data[index])
+        self.binding = data[index].decode()
         index += len(pxl_start)
-        self.protocol = chr_(data[index])
+        self.protocol = data[index].decode
         index += 2
-        self.revision = chr_(data[index])
+        self.revision = data[index].decode()
         # check binding NB - should check other stuff too:
         # example: )<SP>HP-PCL XL;2;0<CR><LF>
         if self.binding not in ['(', ')']:
@@ -384,7 +368,7 @@ class pxl_dis:
             raise(SyntaxError)
 
         # search for the newline
-        while (chr(data[index]) != '\n'):
+        while (data[index].decode() != '\n'):
             index += 1
         index += 1
 
@@ -427,7 +411,7 @@ class pxl_dis:
 
         # prepend the binding to specify the endianness of the XL
         # stream and standard format, not native. (see struct.py docs)
-        return unpack((b(self.binding) + b(format)), data)
+        return unpack(self.binding + format, data)
 
     # implicitly read when parsing the tag
     def attributeIDValue(self):
@@ -438,10 +422,12 @@ class pxl_dis:
             if ( pxl_tags_dict[key] == tag ):
                 return key
         return 0
+    def byte_to_int(self):
+        return int.from_bytes(self.data[self.index], byteorder='big', signed=False)
 
     # get the next operator
     def operatorTag(self):
-        tag = unpackB(self.data[self.index])
+        tag = self.byte_to_int()
         key = self.findTagKey(tag)
         if (not key):
             return 0
@@ -464,7 +450,7 @@ class pxl_dis:
         return 1
 
     def Tag_ubyte(self):
-        new_tag = unpackB(self.data[self.index])
+        new_tag = self.byte_to_int()
         if ( new_tag == pxl_tags_dict['ubyte'] ):
             self.index = self.index + 1
             print("ubyte", end=' ')
@@ -474,7 +460,7 @@ class pxl_dis:
         return 0
 
     def Tag_sint16(self):
-        new_tag = unpackB(self.data[self.index])
+        new_tag = self.byte_to_int()
         if ( new_tag == pxl_tags_dict['sint16'] ):
             self.index = self.index + 1
             print("sint16", end=' ')
@@ -484,7 +470,7 @@ class pxl_dis:
         return 0
 
     def Tag_uint16(self):
-        new_tag = unpackB(self.data[self.index])
+        new_tag = self.byte_to_int()
         if ( new_tag == pxl_tags_dict['uint16'] ):
             self.index = self.index + 1
             print("uint16", end=' ')
@@ -494,7 +480,7 @@ class pxl_dis:
         return 0
 
     def Tag_sint32(self):
-        new_tag = unpackB(self.data[self.index])
+        new_tag = self.byte_to_int()
 
         if ( new_tag == pxl_tags_dict['sint32'] ):
             self.index = self.index + 1
@@ -505,7 +491,7 @@ class pxl_dis:
         return 0
 
     def Tag_uint32(self):
-        new_tag = unpackB(self.data[self.index])
+        new_tag = self.byte_to_int()
 
         if ( new_tag == pxl_tags_dict['uint32'] ):
             self.index = self.index + 1
@@ -517,7 +503,7 @@ class pxl_dis:
         return 0
 
     def Tag_real32(self):
-        new_tag = unpackB(self.data[self.index])
+        new_tag = self.byte_to_int()
 
         if ( new_tag == pxl_tags_dict['real32'] ):
             self.index = self.index + 1
@@ -528,7 +514,7 @@ class pxl_dis:
         return 0
 
     def Tag_ubyte_array(self):
-        new_tag = unpackB(self.data[self.index])
+        new_tag = self.byte_to_int()
 
         if ( new_tag == pxl_tags_dict['ubyte_array'] ):
             self.index = self.index + 1
@@ -539,7 +525,7 @@ class pxl_dis:
         return 0
 
     def Tag_uint16_array(self):
-        new_tag = unpackB(self.data[self.index])
+        new_tag = self.byte_to_int()
 
         if ( new_tag == pxl_tags_dict['uint16_array'] ):
             self.index = self.index + 1
@@ -550,7 +536,7 @@ class pxl_dis:
         return 0
 
     def Tag_sint16_array(self):
-        new_tag = unpackB(self.data[self.index])
+        new_tag = self.byte_to_int()
 
         if ( new_tag == pxl_tags_dict['sint16_array'] ):
             self.index = self.index + 1
@@ -561,7 +547,7 @@ class pxl_dis:
         return 0
 
     def Tag_uint32_array(self):
-        new_tag = unpackB(self.data[self.index])
+        new_tag = self.byte_to_int()
 
         if ( new_tag == pxl_tags_dict['uint32_array'] ):
             self.index = self.index + 1
@@ -572,7 +558,7 @@ class pxl_dis:
         return 0
 
     def Tag_sint32_array(self):
-        new_tag = unpackB(self.data[self.index])
+        new_tag = self.byte_to_int()
 
         if ( new_tag == pxl_tags_dict['sint32_array'] ):
             self.index = self.index + 1
@@ -583,7 +569,7 @@ class pxl_dis:
         return 0
 
     def Tag_real32_array(self):
-        new_tag = unpackB(self.data[self.index])
+        new_tag = self.byte_to_int()
 
         if ( new_tag == pxl_tags_dict['real32_array'] ):
             self.index = self.index + 1
@@ -594,7 +580,7 @@ class pxl_dis:
         return 0
     
     def Tag_ubyte_xy(self):
-        new_tag = unpackB(self.data[self.index])
+        new_tag = self.byte_to_int()
 
         if ( new_tag == pxl_tags_dict['ubyte_xy'] ):
             self.index = self.index + 1
@@ -606,7 +592,7 @@ class pxl_dis:
         return 0
 
     def Tag_uint16_xy(self):
-        new_tag = unpackB(self.data[self.index])
+        new_tag = self.byte_to_int()
 
         if ( new_tag == pxl_tags_dict['uint16_xy'] ):
             self.index = self.index + 1
@@ -618,7 +604,7 @@ class pxl_dis:
         return 0
 
     def Tag_sint16_xy(self):
-        new_tag = unpackB(self.data[self.index])
+        new_tag = self.byte_to_int()
 
         if ( new_tag == pxl_tags_dict['sint16_xy'] ):
             self.index = self.index + 1
@@ -630,7 +616,7 @@ class pxl_dis:
         return 0
 
     def Tag_uint32_xy(self):
-        new_tag = unpackB(self.data[self.index])
+        new_tag = self.byte_to_int()
 
         if ( new_tag == pxl_tags_dict['uint32_xy'] ):
             self.index = self.index + 1
@@ -642,7 +628,7 @@ class pxl_dis:
         return 0
 
     def Tag_sint32_xy(self):
-        new_tag = unpackB(self.data[self.index])
+        new_tag = self.byte_to_int()
 
         if ( new_tag == pxl_tags_dict['sint32_xy'] ):
             self.index = self.index + 1
@@ -654,7 +640,7 @@ class pxl_dis:
         return 0
 
     def Tag_real32_xy(self):
-        new_tag = unpackB(self.data[self.index])
+        new_tag = self.byte_to_int()
 
         if ( new_tag == pxl_tags_dict['real32_xy'] ):
             self.index = self.index + 1
@@ -666,7 +652,7 @@ class pxl_dis:
         return 0
     
     def Tag_ubyte_box(self):
-        new_tag = unpackB(self.data[self.index])
+        new_tag = self.byte_to_int()
 
         if ( new_tag == pxl_tags_dict['ubyte_box'] ):
             self.index = self.index + 1
@@ -678,7 +664,7 @@ class pxl_dis:
         return 0
 
     def Tag_uint16_box(self):
-        new_tag = unpackB(self.data[self.index])
+        new_tag = self.byte_to_int()
 
         if ( new_tag == pxl_tags_dict['uint16_box'] ):
             self.index = self.index + 1
@@ -689,7 +675,7 @@ class pxl_dis:
         return 0
 
     def Tag_sint16_box(self):
-        new_tag = unpackB(self.data[self.index])
+        new_tag = self.byte_to_int()
         if ( new_tag == pxl_tags_dict['sint16_box'] ):
             self.index = self.index + 1
             print("sint16_box %d %d %d %d" % \
@@ -699,7 +685,7 @@ class pxl_dis:
         return 0
 
     def Tag_uint32_box(self):
-        new_tag = unpackB(self.data[self.index])
+        new_tag = self.byte_to_int()
         if ( new_tag == pxl_tags_dict['uint32_box'] ):
             self.index = self.index + 1
             print("uint32_box %d %d %d %d" % \
@@ -709,7 +695,7 @@ class pxl_dis:
         return 0
 
     def Tag_sint32_box(self):
-        new_tag = unpackB(self.data[self.index])
+        new_tag = self.byte_to_int()
 
         if ( new_tag == pxl_tags_dict['sint32_box'] ):
             self.index = self.index + 1
@@ -721,7 +707,7 @@ class pxl_dis:
         return 0
 
     def Tag_real32_box(self):
-        new_tag = unpackB(self.data[self.index])
+        new_tag = self.byte_to_int()
 
         if ( new_tag == pxl_tags_dict['real32_box'] ):
             self.index = self.index + 1
@@ -738,8 +724,8 @@ class pxl_dis:
         result=[]
         while src:
             s,src = src[:16],src[16:]
-            hexa = ' '.join(["%02X"% ord_(x) for x in s])
-            s = ''.join(printables[ord_(x)] for x in s)
+            hexa = ' '.join(["%02X"% x for x in s])
+            s = ''.join(printables[x] for x in s)
             result += "%04X   %-*s   %s\n" % (N, 16*3, hexa, s)
             N+=16
         return ''.join(result)
@@ -767,12 +753,12 @@ class pxl_dis:
         self.index = self.index + length
 
     def Tag_attr_ubyte(self):
-        new_tag = unpackB(self.data[self.index])
+        new_tag = self.byte_to_int()
 
         if ( new_tag == pxl_tags_dict['attr_ubyte'] ):
             self.index = self.index + 1
 
-            tag = unpackB(self.data[self.index])
+            tag = self.byte_to_int()
             for k in pxl_attribute_name_to_attribute_number_dict:
                 if ( pxl_attribute_name_to_attribute_number_dict[k] == tag ):
                     if (k == 'VUDataLength'):
@@ -781,7 +767,7 @@ class pxl_dis:
                         # that its value type can be something else other than uint32.
                         # We'll just backtrack to get a uint32 value, and raise an error 
                         # if it isn't uint32.
-                        vu_tag = unpackB(self.data[self.index-6])
+                        vu_tag = unpack('B', self.data[self.index-6])
                         if ( vu_tag == pxl_tags_dict['uint32'] ):
                             self.VUDataLength = int(self.unpack('I', self.data[self.index-5:self.index-1])[0])
                         else:
@@ -813,7 +799,7 @@ class pxl_dis:
         return 0
 
     def Tag_attr_uint16(self):
-        new_tag = unpackB(self.data[self.index])
+        new_tag = self.byte_to_int()
         if ( new_tag == pxl_tags_dict['attr_uint16'] ):
             self.index = self.index + 1
             print("Attribute tag uint16 # NOT IMPLEMENTED #", self.unpack('HH', self.data[self.index] ))
@@ -957,12 +943,12 @@ class pxl_dis:
                 return
             else:
                 raise
-        else:
+        except Exception as e:
             print("dissassemble failed at file position %d" % self.index, file=sys.stderr)
-            endpos = min(len(self.data), self.index + 25)
-            for byte in self.data[self.index:endpos]:
-                print(hex(ord(byte)), end=' ', file=sys.stderr)
-            print()
+            # print the exception and a stack trace
+            print(e, file=sys.stderr)
+            traceback.print_exc(file=sys.stderr)
+            
 
 if __name__ == '__main__':
     import sys
@@ -973,8 +959,7 @@ if __name__ == '__main__':
     files = sys.argv[1:]
 
     for file in files:
-        binary = True
-        pxl_code = FileArray(file, binary)
+        pxl_code = FileArray(file, binary=True)
     
         # initialize and disassemble.
         pxl_stream = pxl_dis(pxl_code)
